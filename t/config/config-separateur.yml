@@ -1,0 +1,4 @@
+---
+regex:
+  cl_separateur: ;
+  vl_separateur: ,

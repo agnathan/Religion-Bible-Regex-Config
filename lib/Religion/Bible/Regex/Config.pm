@@ -4,125 +4,183 @@ use warnings;
 use strict;
 use Carp;
 
-use version; $VERSION = qv('0.0.3');
+use version; our $VERSION = qv('0.51');
 
-# Other recommended modules (uncomment to use):
-#  use IO::Prompt;
-#  use Perl6::Export;
-#  use Perl6::Slurp;
-#  use Perl6::Say;
+use YAML::Loader;
+
+# Input files are assumed to be in the UTF-8 strict character encoding.
+#use utf8;
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK);
+
+sub new {
+    my $class = shift;
+    my $self = {};
+    my $config = shift;
+
+    bless ($self, $class);
+
+    croak "Religion::Bible::Regex::Config must be initialize with a string which containing either a the location of a YAML file or actual YAML" unless (defined($config));
+
+    # If $config is a file that exists
+    # Crud method for testing that this is not YAML --> m/\n/ == 0
+    if ($config =~ m/\n/ == 0 && -e $config) {
+        $self->{config} = $self->_read_yaml_file($config);
+    } else {
+       my $yaml_loader = YAML::Loader->new();
+       $self->{config} = $yaml_loader->load($config); 
+    }
+
+    return $self;
+}
+
+sub get {
+    my $self = shift;
+    my @keys = @_;
+
+    my $ret = $self->{config};
+    foreach my $key (@keys) {
+#        carp "Configuration not found: {$key}" unless defined($ret->{$key});
+        $ret = $ret->{$key};
+    }
+    return $ret;
+}
+
+sub get_or_undef {
+    my $self = shift;
+    my @keys = @_;
+
+    my $ret = $self->{config};
+    foreach my $key (@keys) {
+        return unless defined($ret->{$key});
+        $ret = $ret->{$key};
+    }
+    return $ret;
+}
 
 
-# Module implementation here
+# These getter functions are very important to have right.
+sub get_bookname_configurations {
+	return shift->{'config'}{'books'}; 
+}
 
+sub get_search_configurations {
+	return shift->{'config'}{'regex'}; 
+}
 
+sub get_formatting_configurations {
+	return shift->{'config'}{'reference'};
+}
+
+sub get_versification_configurations {
+	return shift->{'config'}{'versification'}; 
+}
+
+sub _read_yaml_file {
+    my $self = shift;
+    my $path_to_config_file = shift;
+    my $config;
+
+    my $yaml_loader = YAML::Loader->new();
+    my $yaml_text;
+
+    # Vous ouvrez le fichier de configuration 
+    if(open(*CONFIG, "<:encoding(UTF-8)", $path_to_config_file)) { 
+        {
+            local( $/, *FH );
+            $yaml_text = <CONFIG>;  # slurp it
+        }
+        $config = $yaml_loader->load($yaml_text);
+    	close (CONFIG);
+    }
+
+    return $config;
+}
 1; # Magic true value required at end of module
 __END__
 
 =head1 NAME
 
-Religion::Bible::Regex::Config - [One line description of module's purpose here]
+Religion::Bible::Regex::Config - Creates a configuration object for the Religion::Bible::Regex objects from a YAML file.
 
 
 =head1 VERSION
 
-This document describes Religion::Bible::Regex::Config version 0.0.1
+This document describes Religion::Bible::Regex::Config version 0.2
 
 
 =head1 SYNOPSIS
 
     use Religion::Bible::Regex::Config;
 
-=for author to fill in:
-    Brief code example(s) here showing commonest usage(s).
-    This section will be as far as many users bother reading
-    so make it as educational and exeplary as possible.
-  
-  
-=head1 DESCRIPTION
+    # Initialize with a YAML file or a string containing YAML
+    my $c = new Religion::Bible::Regex::Config("config.yml");
 
-=for author to fill in:
-    Write a full description of the module and its features here.
-    Use subsections (=head2, =head3) as appropriate.
-
+    # Retrieve configurations in YAML format    
+    my $regex_configurations = $c->get_regex_configs;
+    my $reference_configurations = $c->get_reference_configs;
+    
+    # Initialize other Religion::Bible::Regex objects
+    my $r   = new Religion::Bible::Regex::Regex($c);
+    my $v   = new Religion::Bible::Regex::Versification($r, $c);
+    my $ref = new Religion::Bible::Regex::Reference($r, $c);
+      
 
 =head1 INTERFACE 
 
-=for author to fill in:
-    Write a separate section listing the public components of the modules
-    interface. These normally consist of either subroutines that may be
-    exported, or methods that may be called on objects belonging to the
-    classes provided by the module.
+=head2 new
 
+Creates a configuration object from a YAML file or string
+
+=head2 get
+
+Returns a configuration string
+
+=head2 gethash
+
+Returns a hash of all configurations
+
+=head2 get_formatting_configurations
+
+Returns a hash of the reference configurations
+
+=head2 get_search_configurations
+
+Returns a hash of the regex configurations
+
+=head2 get_versification_configurations
+
+Returns a hash of the versification configurations
+
+=head2 get_bookname_configurations
+
+Returns a hash of the bookname configurations
+
+=head2 get_or_undef
 
 =head1 DIAGNOSTICS
 
-=for author to fill in:
-    List every single error and warning message that the module can
-    generate (even the ones that will "never happen"), with a full
-    explanation of each problem, one or more likely causes, and any
-    suggested remedies.
-
 =over
 
-=item C<< Error message here, perhaps with %s placeholders >>
+=item If you do not pass a YAML file or string when creating a new instance then your program will croak.
 
-[Description of error here]
+=item If you pass in invalid YAML then expect your program to stop and dump the errors
+to the STDOUT.
 
-=item C<< Another error message here >>
-
-[Description of error here]
-
-[Et cetera, et cetera]
+See the YAML module for more details.
 
 =back
 
 
 =head1 CONFIGURATION AND ENVIRONMENT
-
-=for author to fill in:
-    A full explanation of any configuration system(s) used by the
-    module, including the names and locations of any configuration
-    files, and the meaning of any environment variables or properties
-    that can be set. These descriptions must also include details of any
-    configuration language used.
   
 Religion::Bible::Regex::Config requires no configuration files or environment variables.
 
 
 =head1 DEPENDENCIES
 
-=for author to fill in:
-    A list of all the other modules that this module relies upon,
-    including any restrictions on versions, and an indication whether
-    the module is part of the standard Perl distribution, part of the
-    module's distribution, or must be installed separately. ]
-
-None.
-
-
-=head1 INCOMPATIBILITIES
-
-=for author to fill in:
-    A list of any modules that this module cannot be used in conjunction
-    with. This may be due to name conflicts in the interface, or
-    competition for system or program resources, or due to internal
-    limitations of Perl (for example, many modules that use source code
-    filters are mutually incompatible).
-
-None reported.
-
+B<YAML>
 
 =head1 BUGS AND LIMITATIONS
-
-=for author to fill in:
-    A list of known problems with the module, together with some
-    indication Whether they are likely to be fixed in an upcoming
-    release. Also a list of restrictions on the features the module
-    does provide: data types that cannot be handled, performance issues
-    and the circumstances in which they may arise, practical
-    limitations on the size of data sets, special cases that are not
-    (yet) handled, etc.
 
 No bugs have been reported.
 
@@ -143,26 +201,3 @@ Copyright (c) 2009, Daniel Holmlund C<< <holmlund.dev@gmail.com> >>. All rights 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself. See L<perlartistic>.
 
-
-=head1 DISCLAIMER OF WARRANTY
-
-BECAUSE THIS SOFTWARE IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
-FOR THE SOFTWARE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN
-OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
-PROVIDE THE SOFTWARE "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
-EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE
-ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE SOFTWARE IS WITH
-YOU. SHOULD THE SOFTWARE PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL
-NECESSARY SERVICING, REPAIR, OR CORRECTION.
-
-IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
-WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
-REDISTRIBUTE THE SOFTWARE AS PERMITTED BY THE ABOVE LICENCE, BE
-LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL,
-OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE
-THE SOFTWARE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
-RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
-FAILURE OF THE SOFTWARE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
-SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
-SUCH DAMAGES.
